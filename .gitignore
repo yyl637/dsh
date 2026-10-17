@@ -1,0 +1,36 @@
+# 临时与测试残留，不入库
+_trash/
+*.tmp
+*.temp
+*.bak
+*.log
+
+# 依赖与构建产物
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+dist/
+build/
+target/
+.next/
+*.egg-info/
+
+# 密钥与本地配置
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+credentials*
+secrets*
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
