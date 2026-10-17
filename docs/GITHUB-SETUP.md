@@ -70,22 +70,22 @@ GIT_CONFIG_COUNT=0 git push            # 首次： GIT_CONFIG_COUNT=0 git push -
 ssh -T git@github.com
 ```
 
-## 测试仓库 yyl637/dsh
+## 产出总仓：yyl637/dsh
 
-写路径测试往 `yyl637/dsh` 推了一个 commit：
+工作目录 `/home/agentuser/liubai world` 已初始化为 git 仓库，origin 指向 `git@github.com:yyl637/dsh.git`，跟踪 `main`。
 
-- commit：`a5acaae` — `test: 验证 SSH push 连通性`
-- 内容：一个 5 行的 `README.md`
-- 分支：`main`（原本空仓库，此 commit 为初始提交）
+**之后任何任务产出的 md 和代码，直接在根目录 `git add -A` 就会进这个仓库**，不用再 clone 别的目录。
 
-清理方式任选：
+目录约定：
 
-```bash
-# 只删这个提交（保留仓库）
-GIT_CONFIG_COUNT=0 git push origin --delete main
-
-# 或者直接在网页上删掉整个仓库
 ```
+.
+├── docs/           # 文档产出
+├── projects/       # 代码产出，每个任务一个子目录
+└── _trash/         # 临时与测试残留，被 .gitignore 排除
+```
+
+历史里 `a5acaae`（连通性测试）和 `b3f1203`（delivery-test 测试包）是最初的验证提交，内容已由 `d0ebab4` 清理，仅留作历史。
 
 ## 撤销接入
 
