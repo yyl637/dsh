@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<!--
+  比奇堡 · 抓水母大作战
+  SpongeBob rides Patrick on a coral-red bicycle through Bikini Bottom, scooping jellyfish.
+  A tribute to the "pelican riding a bicycle" benchmark — pure inline SVG + vanilla JS,
+  no fonts, images or CDN required. Open this file in any modern browser.
+
+  Controls: click the scene or press S to swing the net · Space to pause · speed button
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>海绵宝宝骑派大星 · 比奇堡抓水母</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{
+    --pad:clamp(10px,2vw,28px);
+    background:
+      radial-gradient(1100px 700px at 50% -10%, #12556f 0%, #072534 55%, #03141d 100%);
+    display:flex;align-items:center;justify-content:center;
+    min-height:100vh;padding:var(--pad);
+    font-family:"Baloo 2","Comic Sans MS","Chalkboard SE","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    color:#eafcff;overflow-x:hidden;
+  }
+  .stage{
+    position:relative;width:min(1200px,100%,calc((100vh - 2*var(--pad)) * 16 / 9));aspect-ratio:16/9;
+    border-radius:26px;overflow:hidden;background:#0a4a63;cursor:pointer;
+    box-shadow:
+      0 34px 90px -22px rgba(0,0,0,.85),
+      0 0 0 1px rgba(150,235,255,.20),
+      0 0 70px -10px rgba(40,190,230,.28);
+    touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;
+  }
+  svg{display:block;width:100%;height:100%}
+  .hud{position:absolute;inset:0;pointer-events:none;padding:clamp(9px,1.7vw,20px);
+       display:flex;flex-direction:column;justify-content:space-between}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .card{
+    background:rgba(4,32,45,.46);
+    -webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px);
+    border:1px solid rgba(175,240,255,.26);
+    border-radius:16px;padding:9px 14px;
+    box-shadow:0 8px 24px -12px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.12);
+  }
+  h1{margin:0;font-size:clamp(13px,1.55vw,21px);letter-spacing:.6px;line-height:1.15;
+     text-shadow:0 2px 0 rgba(0,60,80,.6)}
+  .sub{margin:3px 0 0;font-size:clamp(9px,.95vw,12px);opacity:.72;letter-spacing:.4px}
+  .right{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+  .right-bottom{display:flex;flex-direction:column;align-items:flex-end;gap:7px}
+  .score{display:flex;align-items:center;gap:8px;font-size:clamp(12px,1.4vw,19px);font-weight:700;white-space:nowrap}
+  .score b{font-size:clamp(16px,2vw,27px);min-width:1.2em;text-align:right;
+           display:inline-block;transition:transform .18s ease, color .18s ease}
+  .score b.pop{transform:scale(1.55);color:#ffe27a}
+  .score .unit{font-size:.66em;opacity:.8;font-weight:400}
+  .row{display:flex;gap:7px;pointer-events:auto}
+  .btn{
+    pointer-events:auto;cursor:pointer;font-family:inherit;font-size:clamp(10px,1vw,13px);
+    color:#eafcff;background:rgba(9,58,78,.72);border:1px solid rgba(160,235,255,.35);
+    border-radius:999px;padding:7px 13px;font-weight:600;letter-spacing:.5px;
+    transition:background .15s ease, transform .1s ease, border-color .15s;
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  }
+  .btn:hover{background:rgba(24,105,135,.85);border-color:rgba(190,245,255,.7)}
+  #btnSwing{background:rgba(255,203,92,.92);color:#5a3200;border-color:rgba(255,235,170,.9);
+    box-shadow:0 4px 14px -4px rgba(255,180,40,.7), inset 0 -2px 0 rgba(160,100,0,.22)}
+  #btnSwing:hover{background:rgba(255,220,130,1);border-color:#fff}
+  .btn:active{transform:scale(.94)}
+  .hint{
+    align-self:flex-start;font-size:clamp(9px,.95vw,12px);opacity:.8;letter-spacing:.5px;
+    padding:5px 12px;border-radius:999px;background:rgba(4,32,45,.42);
+    border:1px solid rgba(175,240,255,.16);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  }
+  .bottom{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+  .credit{font-size:clamp(8px,.85vw,11px);letter-spacing:.6px;text-align:right;line-height:1.5;
+    background:rgba(4,32,45,.38);border:1px solid rgba(175,240,255,.12);border-radius:999px;
+    padding:4px 11px;opacity:.62;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+  .toast{
+    position:absolute;left:50%;top:19%;transform:translate(-50%,-14px) scale(.9);
+    background:rgba(255,240,150,.94);color:#7a4300;font-weight:800;
+    padding:9px 20px;border-radius:999px;font-size:clamp(12px,1.3vw,17px);
+    letter-spacing:1px;opacity:0;pointer-events:none;
+    box-shadow:0 10px 30px -8px rgba(0,0,0,.7), inset 0 -2px 0 rgba(180,110,0,.25);
+    transition:opacity .22s ease, transform .28s cubic-bezier(.2,1.6,.4,1);
+    white-space:nowrap;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0) scale(1)}
+  body.clean{padding:0;background:#04141e;display:block;overflow:hidden}
+  body.clean .stage{width:100vw;height:100vh;max-width:none;aspect-ratio:auto;border-radius:0;box-shadow:none}
+  body.clean .hint, body.clean .credit, body.clean .row{display:none}
+  .rotate-tip{
+    position:absolute;left:50%;bottom:12px;transform:translateX(-50%);
+    display:none;white-space:nowrap;font-size:11px;letter-spacing:.5px;
+    color:#dff9ff;background:rgba(4,32,45,.55);border:1px solid rgba(175,240,255,.2);
+    padding:5px 12px;border-radius:999px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  }
+  @media (max-width:900px){
+    .credit{display:none}
+  }
+  @media (max-width:640px){
+    .hint{display:none}
+  }
+  @media (max-width:640px) and (orientation:portrait){
+    .rotate-tip{display:block}
+  }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+<svg id="scene" viewBox="0 0 1200 675" preserveAspectRatio="xMidYMid slice" role="img" aria-label="海绵宝宝骑在派大星背上，踩着一辆珊瑚色自行车，在比奇堡抓水母">
+  <defs>
+    <!-- ===== gradients ===== -->
+    <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#8aeaf8"/>
+      <stop offset=".22" stop-color="#4cc9e2"/>
+      <stop offset=".55" stop-color="#1f95b6"/>
+      <stop offset=".82" stop-color="#127891"/>
+      <stop offset="1"   stop-color="#0b5d76"/>
+    </linearGradient>
+    <radialGradient id="sunGlow" cx=".5" cy=".5" r=".5">
+      <stop offset="0"   stop-color="#ffffff" stop-opacity=".55"/>
+      <stop offset=".45" stop-color="#d9fbff" stop-opacity=".18"/>
+      <stop offset="1"   stop-color="#d9fbff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vignette" cx=".5" cy=".48" r=".72">
+      <stop offset=".55" stop-color="#02202e" stop-opacity="0"/>
+      <stop offset="1"   stop-color="#02161f" stop-opacity=".62"/>
+    </radialGradient>
+    <linearGradient id="hazeGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5fd0e6" stop-opacity="0"/>
+      <stop offset="1" stop-color="#69d9ea" stop-opacity=".28"/>
+    </linearGradient>
+
+    <linearGradient id="sandTop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f7e6b0"/>
+      <stop offset="1" stop-color="#dcbf80"/>
+    </linearGradient>
+    <linearGradient id="sandDeep" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e3c98d"/>
+      <stop offset="1" stop-color="#b1945c"/>
+    </linearGradient>
+    <linearGradient id="duneGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#efdba6"/>
+      <stop offset="1" stop-color="#cdb27c"/>
+    </linearGradient>
+
+    <linearGradient id="pineGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd05a"/>
+      <stop offset=".55" stop-color="#f2a52c"/>
+      <stop offset="1" stop-color="#d97d13"/>
+    </linearGradient>
+    <linearGradient id="spongeGrad" x1=".2" y1="0" x2=".9" y2="1">
+      <stop offset="0" stop-color="#fff08a"/>
+      <stop offset=".55" stop-color="#fbe04b"/>
+      <stop offset="1" stop-color="#efcb32"/>
+    </linearGradient>
+    <radialGradient id="pinkGrad" cx=".35" cy=".3" r=".8">
+      <stop offset="0" stop-color="#ffc6da"/>
+      <stop offset=".6" stop-color="#f9a4c6"/>
+      <stop offset="1" stop-color="#ee8bb4"/>
+    </radialGradient>
+    <linearGradient id="frameGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff8a63"/>
+      <stop offset=".5" stop-color="#f5613e"/>
+      <stop offset="1" stop-color="#c93f24"/>
+    </linearGradient>
+    <linearGradient id="jellyBell" x1=".2" y1="0" x2=".8" y2="1">
+      <stop offset="0" stop-color="#ffe0f4"/>
+      <stop offset=".45" stop-color="#ff9ad8"/>
+      <stop offset="1" stop-color="#f765bd"/>
+    </linearGradient>
+    <radialGradient id="jellyAura" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ff9fe0" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#ff9fe0" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- ===== filters ===== -->
+    <filter id="hazeBlur" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3.2"/>
+    </filter>
+    <filter id="softShadow" x="-40%" y="-60%" width="180%" height="220%">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- ===== clips ===== -->
+    <clipPath id="pineClip"><use href="#pineShape"/></clipPath>
+    <clipPath id="hoopClip"><circle cx="1058" cy="180" r="44"/></clipPath>
+    <clipPath id="bagClip"><path d="M1016,206 C1004,246 1012,284 1042,300 C1072,288 1094,250 1099,203 C1082,236 1034,238 1016,206 Z"/></clipPath>
+    <clipPath id="sceneClip"><rect x="0" y="0" width="1200" height="675"/></clipPath>
+
+    <!-- ===== reusable shapes ===== -->
+    <path id="pineShape" d="M0,-146 C40,-146 66,-112 66,-74 C66,-26 40,0 0,0 C-40,0 -66,-26 -66,-74 C-66,-112 -40,-146 0,-146 Z"/>
+
+    <!-- ===== far background band (1600 wide, looped) ===== -->
+    <g id="farBand" opacity=".9">
+      <g fill="#3ba7c2" opacity=".42">
+        <path d="M-20,610 L-20,430 C 30,402 62,436 74,398 C 88,352 132,346 150,392 C 166,432 196,420 224,442 C 250,462 254,510 250,610 Z"/>
+        <path d="M330,610 L330,470 C 360,448 392,462 406,436 C 424,404 466,408 476,448 C 486,486 516,492 530,530 L530,610 Z"/>
+        <path d="M560,610 L560,455 C 566,392 596,344 622,300 C 640,270 664,272 668,308 C 674,356 642,404 636,470 C 632,520 646,560 650,610 Z"/>
+        <path d="M700,610 C 700,520 690,470 706,420 C 718,382 748,360 770,392 C 790,422 776,470 780,520 C 783,556 794,586 800,610 Z"/>
+        <path d="M850,610 L850,430 C 862,398 894,384 912,412 C 930,440 924,486 940,520 C 954,550 980,566 986,610 Z"/>
+        <path d="M1010,610 L1010,440 C 1030,404 1072,398 1090,430 C 1108,462 1100,510 1120,540 C 1136,564 1160,580 1166,610 Z"/>
+        <path d="M1190,610 L1190,410 C 1204,372 1252,360 1268,398 C 1284,436 1272,486 1290,520 C 1306,550 1338,566 1344,610 Z"/>
+        <path d="M1380,610 L1380,470 C 1404,442 1448,452 1462,486 C 1476,520 1508,532 1520,560 L1520,610 Z"/>
+      </g>
+      <g fill="none" stroke="#4fb8d0" stroke-width="9" stroke-linecap="round" opacity=".38">
+        <path d="M270,610 C 258,560 274,520 260,470"/>
+        <path d="M296,610 C 308,556 292,516 306,468"/>
+        <path d="M820,610 C 812,556 826,516 814,468"/>
+        <path d="M1350,610 C 1342,566 1358,530 1346,492"/>
+      </g>
+      <g fill="#54bdd4" opacity=".34">
+        <g transform="translate(180,286)"><path d="M0,0 q 14,-9 28,0 q -14,9 -28,0 z"/><path d="M0,0 l -11,-7 l 0,14 z"/></g>
+        <g transform="translate(236,318) scale(.8)"><path d="M0,0 q 14,-9 28,0 q -14,9 -28,0 z"/><path d="M0,0 l -11,-7 l 0,14 z"/></g>
+        <g transform="translate(300,292) scale(.65)"><path d="M0,0 q 14,-9 28,0 q -14,9 -28,0 z"/><path d="M0,0 l -11,-7 l 0,14 z"/></g>
+        <g transform="translate(880,242) scale(.9) rotate(4)"><path d="M0,0 q 14,-9 28,0 q -14,9 -28,0 z"/><path d="M0,0 l -11,-7 l 0,14 z"/></g>
+        <g transform="translate(944,272) scale(.7)"><path d="M0,0 q 14,-9 28,0 q -14,9 -28,0 z"/><path d="M0,0 l -11,-7 l 0,14 z"/></g>
+        <g transform="translate(1250,330) scale(.75)"><path d="M0,0 q 14,-9 28,0 q -14,9 -28,0 z"/><path d="M0,0 l -11,-7 l 0,14 z"/></g>
+        <g transform="translate(1470,286) scale(.85)"><path d="M0,0 q 14,-9 28,0 q -14,9 -28,0 z"/><path d="M0,0 l -11,-7 l 0,14 z"/></g>
+      </g>
+      <g fill="#ff9ad8" opacity=".22">
+        <g transform="translate(420,240) scale(.7)"><path d="M-30,8 C-30,-12 -16,-24 0,-24 C16,-24 30,-12 30,8 C24,13 18,4 12,9 C6,14 0,5 -6,9 C-12,13 -24,13 -30,8 Z"/></g>
+        <g transform="translate(1180,146) scale(.55)"><path d="M-30,8 C-30,-12 -16,-24 0,-24 C16,-24 30,-12 30,8 C24,13 18,4 12,9 C6,14 0,5 -6,9 C-12,13 -24,13 -30,8 Z"/></g>
+        <g transform="translate(760,150) scale(.45)"><path d="M-30,8 C-30,-12 -16,-24 0,-24 C16,-24 30,-12 30,8 C24,13 18,4 12,9 C6,14 0,5 -6,9 C-12,13 -24,13 -30,8 Z"/></g>
+      </g>
+      <g fill="#43aec9" opacity=".4">
+        <ellipse cx="120" cy="596" rx="150" ry="34"/>
+        <ellipse cx="520" cy="602" rx="190" ry="38"/>
+        <ellipse cx="940" cy="598" rx="170" ry="32"/>
+        <ellipse cx="1420" cy="600" rx="180" ry="36"/>
+      </g>
+    </g>
+
+    <!-- ===== mid background band (1600 wide, looped) ===== -->
+    <g id="midBand">
+      <!-- dunes -->
+      <path d="M0,600 C 120,566 240,590 360,578 C 470,566 560,594 690,586 C 800,578 900,600 1020,590 C 1140,580 1250,598 1370,584 C 1470,572 1540,588 1600,580 L1600,675 L0,675 Z"
+            fill="url(#duneGrad)"/>
+
+      <!-- 菠萝屋 -->
+      <g transform="translate(300,592) scale(.9)">
+        <g fill="#3f9f52" stroke="#2c7a3f" stroke-width="2.5" stroke-linejoin="round">
+          <path d="M0,-138 Q -8,-178 -38,-200 Q -4,-188 10,-142 Z"/>
+          <path d="M0,-138 Q -30,-166 -66,-170 Q -30,-154 -8,-136 Z"/>
+          <path d="M0,-138 Q 8,-178 34,-202 Q 8,-186 -10,-142 Z"/>
+          <path d="M0,-138 Q 30,-162 64,-164 Q 32,-148 10,-134 Z"/>
+          <path d="M0,-138 Q 0,-186 6,-216 Q 16,-180 12,-138 Z"/>
+        </g>
+        <use href="#pineShape" fill="url(#pineGrad)" stroke="#b9761b" stroke-width="4"/>
+        <g clip-path="url(#pineClip)" stroke="#b9761b" stroke-width="2" opacity=".45" fill="none">
+          <path d="M-96,-160 L 40,20"/><path d="M-72,-160 L 64,20"/><path d="M-48,-160 L 88,20"/>
+          <path d="M-24,-160 L 112,20"/><path d="M0,-160 L 136,20"/><path d="M24,-160 L 160,20"/>
+          <path d="M96,-160 L -40,20"/><path d="M72,-160 L -64,20"/><path d="M48,-160 L -88,20"/>
+          <path d="M24,-160 L -112,20"/><path d="M0,-160 L -136,20"/><path d="M-24,-160 L -160,20"/>
+        </g>
+        <circle cx="-23" cy="-98" r="14" fill="#0b4a60" stroke="#b9761b" stroke-width="5"/>
+        <circle cx="23"  cy="-98" r="14" fill="#0b4a60" stroke="#b9761b" stroke-width="5"/>
+        <circle cx="-27" cy="-102" r="4" fill="#8fe6ff" opacity=".7"/>
+        <circle cx="19"  cy="-102" r="4" fill="#8fe6ff" opacity=".7"/>
+        <path d="M0,-48 a 19,19 0 0 1 19,19 L19,0 L-19,0 L-19,-29 A 19,19 0 0 1 0,-48 Z" fill="#0b4a60" stroke="#b9761b" stroke-width="5"/>
+        <path d="M-30,0 L30,0" stroke="#b9761b" stroke-width="5" stroke-linecap="round"/>
+      </g>
+
+      <!-- 摩艾石像屋 -->
+      <g transform="translate(1218,592) scale(.94)">
+        <path d="M-64,0 L-68,-78 C-72,-132 -50,-166 -8,-172 C 34,-178 62,-152 64,-114 C 66,-80 62,-40 60,0 Z"
+              fill="#9aa5a0" stroke="#6d7873" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M-56,-124 C -44,-144 -8,-150 22,-140 L 28,-120 C 0,-132 -34,-128 -52,-112 Z" fill="#828d88" opacity=".85"/>
+        <ellipse cx="-25" cy="-100" rx="13" ry="10" fill="#33403c"/>
+        <ellipse cx="25"  cy="-98" rx="13" ry="10" fill="#33403c"/>
+        <path d="M-10,-122 C 0,-116 5,-94 3,-74 L -6,-74 C -8,-94 -13,-110 -18,-122 Z" fill="#8b968f" stroke="#6d7873" stroke-width="2.5"/>
+        <path d="M-34,-64 C -34,-50 -22,-40 -2,-40 C 18,-40 32,-50 32,-64 Z" fill="#8b968f" opacity=".55"/>
+        <path d="M-28,-40 a 28,28 0 0 1 56,0 L 28,0 L -28,0 Z" fill="#124252" stroke="#5d6863" stroke-width="4"/>
+        <path d="M-20,-14 L20,-14" stroke="#2a8ba6" stroke-width="3" opacity=".7"/>
+      </g>
+
+      <!-- 石头与珊瑚 -->
+      <g>
+        <path d="M1250,600 C 1250,548 1280,520 1316,524 C 1352,528 1372,556 1372,600 Z" fill="#a9b4b0" stroke="#7b8783" stroke-width="4"/>
+        <path d="M1300,560 C 1316,548 1334,548 1348,560" stroke="#8c9793" stroke-width="4" fill="none"/>
+        <path d="M1290,600 C 1282,556 1288,520 1304,494 C 1310,520 1312,560 1312,600 Z" fill="#c96f9a" opacity=".85"/>
+        <path d="M1330,600 C 1338,566 1350,540 1368,524 C 1364,558 1360,580 1358,600 Z" fill="#e08ab0" opacity=".8"/>
+      </g>
+      <g opacity=".9">
+        <path d="M586,600 C 574,570 578,540 590,520 C 596,548 598,574 598,600 Z" fill="#7c5fa8"/>
+        <path d="M604,600 C 606,574 616,552 632,540 C 626,566 620,586 618,600 Z" fill="#9b7cc4"/>
+        <path d="M566,600 C 560,578 562,556 572,542 C 574,564 574,584 574,600 Z" fill="#6a4f95"/>
+      </g>
+      <!-- 水母田小花 -->
+      <g fill="#c98ad6" opacity=".85">
+        <g transform="translate(452,600)"><path d="M0,0 C -4,-26 -2,-42 4,-56" stroke="#8aa64a" stroke-width="3" fill="none"/><ellipse cx="4" cy="-58" rx="7" ry="9"/></g>
+        <g transform="translate(486,602)"><path d="M0,0 C 3,-22 5,-38 2,-50" stroke="#8aa64a" stroke-width="3" fill="none"/><ellipse cx="2" cy="-52" rx="6" ry="8"/></g>
+        <g transform="translate(1108,600)"><path d="M0,0 C -4,-24 -2,-40 3,-54" stroke="#8aa64a" stroke-width="3" fill="none"/><ellipse cx="3" cy="-56" rx="7" ry="9"/></g>
+        <g transform="translate(1140,602)"><path d="M0,0 C 3,-20 5,-34 2,-46" stroke="#8aa64a" stroke-width="3" fill="none"/><ellipse cx="2" cy="-48" rx="6" ry="8"/></g>
+      </g>
+      <!-- 水母田木牌 -->
+      <g transform="translate(596,600)">
+        <rect x="-6" y="-92" width="10" height="94" rx="3" fill="#8a5f36" stroke="#5f3f22" stroke-width="2.5"/>
+        <g transform="rotate(-3)">
+          <rect x="-64" y="-124" width="128" height="42" rx="7" fill="#b5855197" stroke="#6d4726" stroke-width="3"/>
+          <rect x="-60" y="-120" width="120" height="34" rx="5" fill="#c99a63" stroke="#8a5f36" stroke-width="2"/>
+          <text x="0" y="-105" text-anchor="middle" font-size="12" font-weight="700" fill="#5f3f22"
+                font-family="Trebuchet MS, sans-serif" letter-spacing="1">JELLYFISH</text>
+          <text x="0" y="-92" text-anchor="middle" font-size="11" font-weight="700" fill="#5f3f22"
+                font-family="Trebuchet MS, sans-serif" letter-spacing="2">FIELDS</text>
+        </g>
+      </g>
+      <!-- 远景海草 -->
+      <g fill="none" stroke="#2f8f6d" stroke-width="8" stroke-linecap="round" opacity=".55">
+        <path d="M760,600 C 748,556 766,522 752,486"/>
+        <path d="M784,600 C 796,552 780,516 794,478"/>
+        <path d="M1440,600 C 1428,556 1446,522 1432,486"/>
+        <path d="M1466,600 C 1478,552 1462,516 1476,478"/>
+      </g>
+    </g>
+
+    <!-- ===== ground band (1600 wide, looped) ===== -->
+    <g id="groundBand">
+      <path d="M0,614 C 120,606 240,620 360,612 C 480,604 600,621 720,613 C 840,605 960,620 1080,612 C 1200,604 1320,620 1440,613 C 1520,608 1560,613 1600,611 L1600,675 L0,675 Z"
+            fill="url(#sandTop)"/>
+      <g fill="#c8a76c" opacity=".8">
+        <ellipse cx="96"  cy="636" rx="13" ry="5"/>
+        <ellipse cx="268" cy="654" rx="17" ry="6"/>
+        <ellipse cx="430" cy="630" rx="10" ry="4"/>
+        <ellipse cx="560" cy="658" rx="20" ry="6"/>
+        <ellipse cx="726" cy="640" rx="12" ry="5"/>
+        <ellipse cx="900" cy="660" rx="18" ry="6"/>
+        <ellipse cx="1044" cy="634" rx="11" ry="4"/>
+        <ellipse cx="1216" cy="652" rx="16" ry="6"/>
+        <ellipse cx="1390" cy="636" rx="12" ry="5"/>
+        <ellipse cx="1520" cy="662" rx="19" ry="6"/>
+      </g>
+      <g fill="#a98b55" opacity=".55">
+        <ellipse cx="188" cy="668" rx="22" ry="6"/>
+        <ellipse cx="668" cy="670" rx="26" ry="7"/>
+        <ellipse cx="1130" cy="668" rx="24" ry="6"/>
+        <ellipse cx="1580" cy="670" rx="20" ry="6"/>
+      </g>
+      <!-- 贝壳 -->
+      <g fill="#f3c9c0" stroke="#cf9a90" stroke-width="2">
+        <path d="M340,646 a 14,14 0 0 1 28,0 Z"/>
+        <path d="M842,652 a 11,11 0 0 1 22,0 Z"/>
+      </g>
+      <!-- 小海星 -->
+      <g transform="translate(1170,648) scale(.55)" fill="#f2724f" stroke="#c9502f" stroke-width="4" stroke-linejoin="round">
+        <path d="M0,-24 L7,-8 L24,-6 L11,5 L15,22 L0,13 L-15,22 L-11,5 L-24,-6 L-7,-8 Z"/>
+      </g>
+      <!-- 草丛 -->
+      <g fill="none" stroke="#4f9a63" stroke-width="5" stroke-linecap="round">
+        <path d="M60,642 C 56,626 62,614 58,604"/>
+        <path d="M70,642 C 70,624 76,614 80,606"/>
+        <path d="M505,646 C 501,628 507,616 503,606"/>
+        <path d="M516,646 C 517,626 524,616 528,608"/>
+        <path d="M986,644 C 982,628 988,616 984,606"/>
+        <path d="M997,644 C 998,626 1005,616 1009,608"/>
+        <path d="M1330,646 C 1326,630 1332,618 1328,608"/>
+      </g>
+    </g>
+  </defs>
+
+  <!-- ================= BACKGROUND ================= -->
+  <rect width="1200" height="675" fill="url(#waterGrad)"/>
+  <ellipse cx="1010" cy="30" rx="560" ry="290" fill="url(#sunGlow)"/>
+
+  <!-- 光柱 -->
+  <g id="rays" fill="#e6feff" opacity=".8">
+    <polygon id="ray0" points="1004,-40 1078,-40 846,675 762,675" opacity=".085"/>
+    <polygon id="ray1" points="880,-40 938,-40 706,675 626,675" opacity=".06"/>
+    <polygon id="ray2" points="1120,-40 1196,-40 970,675 886,675" opacity=".075"/>
+    <polygon id="ray3" points="700,-40 742,-40 520,675 458,675" opacity=".045"/>
+    <polygon id="ray4" points="330,-40 386,-40 200,675 130,675" opacity=".035"/>
+  </g>
+
+  <!-- 远景 -->
+  <g clip-path="url(#sceneClip)">
+    <g id="farScroll">
+      <use href="#farBand"/>
+      <use href="#farBand" x="1600"/>
+    </g>
+  </g>
+
+  <!-- 中景 -->
+  <g clip-path="url(#sceneClip)">
+    <g id="midScroll">
+      <use href="#midBand"/>
+      <use href="#midBand" x="1600"/>
+    </g>
+  </g>
+  <rect y="300" width="1200" height="375" fill="url(#hazeGrad)" opacity=".7"/>
+
+  <!-- 地面 -->
+  <rect y="613" width="1200" height="62" fill="url(#sandDeep)"/>
+  <g clip-path="url(#sceneClip)">
+    <g id="groundScroll">
+      <use href="#groundBand"/>
+      <use href="#groundBand" x="1600"/>
+    </g>
+  </g>
+  <!-- 沙面光斑 -->
+  <g id="caustics" fill="#fff9d8">
+    <ellipse id="cau0" cx="260" cy="632" rx="120" ry="9" opacity=".10"/>
+    <ellipse id="cau1" cx="690" cy="646" rx="150" ry="11" opacity=".09"/>
+    <ellipse id="cau2" cx="1060" cy="628" rx="130" ry="8" opacity=".08"/>
+  </g>
+
+  <!-- 速度线 -->
+  <g id="streaks" stroke="#e9fdff" stroke-linecap="round" opacity=".5"></g>
+
+  <!-- 气泡（后） -->
+  <g id="bubbles" fill="rgba(255,255,255,.10)" stroke="rgba(255,255,255,.55)" stroke-width="1.6"></g>
+
+  <!-- 水母 -->
+  <g id="jellies"></g>
+
+  <!-- ================= CHARACTERS ================= -->
+  <ellipse cx="790" cy="616" rx="200" ry="16" fill="#5c3f1d" opacity=".26" filter="url(#softShadow)"/>
+
+  <g id="rig">
+    <!-- ===== 派大星：远侧腿 / 手臂 ===== -->
+    <g id="limbsFar">
+      <g id="legFar">
+        <polyline points="792,512 800,560 824,600" fill="none" stroke="#c25b86" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="792,512 800,560 824,600" fill="none" stroke="#dc7ea6" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+      <ellipse id="footFar" cx="824" cy="602" rx="16" ry="9.5" fill="#dc7ea6" stroke="#b9557f" stroke-width="2.5"/>
+      <g id="armFar">
+        <polyline points="818,414 780,440 742,494" fill="none" stroke="#c25b86" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="818,414 780,440 742,494" fill="none" stroke="#dc7ea6" stroke-width="21" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+      <ellipse id="handFar" cx="742" cy="496" rx="13" ry="9" fill="#dc7ea6" stroke="#b9557f" stroke-width="2.5"/>
+    </g>
+
+    <g id="bodyG">
+      <!-- ===== 海绵宝宝（在派大星背后） ===== -->
+      <g id="sb">
+        <g id="sbBody" transform="translate(-28,63) rotate(-6 751 314)">
+          <path d="M706,268 Q706,254 720,254 L782,254 Q796,254 796,268 L796,360 Q796,374 782,374 L720,374 Q706,374 706,360 Z"
+                fill="url(#spongeGrad)" stroke="#c9a227" stroke-width="4.5"/>
+          <g fill="#e7c93c" opacity=".95">
+            <ellipse cx="717" cy="268" rx="5" ry="4"/>
+            <ellipse cx="786" cy="264" rx="4.5" ry="3.6"/>
+            <ellipse cx="713" cy="342" rx="4.5" ry="3.6"/>
+            <ellipse cx="790" cy="336" rx="5" ry="4"/>
+            <ellipse cx="722" cy="364" rx="3.6" ry="3"/>
+            <ellipse cx="778" cy="366" rx="3.4" ry="2.8"/>
+            <ellipse cx="750" cy="262" rx="4" ry="3.2"/>
+            <ellipse cx="712" cy="306" rx="3.4" ry="2.8"/>
+            <ellipse cx="791" cy="300" rx="3.4" ry="2.8"/>
+          </g>
+          <ellipse cx="732" cy="294" rx="15.5" ry="17.5" fill="#fff" stroke="#c9a227" stroke-width="3"/>
+          <ellipse cx="768" cy="290" rx="15.5" ry="17.5" fill="#fff" stroke="#c9a227" stroke-width="3"/>
+          <circle cx="736" cy="296" r="6.6" fill="#3aa7e8"/>
+          <circle cx="772" cy="292" r="6.6" fill="#3aa7e8"/>
+          <circle cx="737" cy="296" r="3.2" fill="#12222c"/>
+          <circle cx="773" cy="292" r="3.2" fill="#12222c"/>
+          <circle cx="739" cy="293" r="2" fill="#fff"/>
+          <circle cx="775" cy="289" r="2" fill="#fff"/>
+          <g stroke="#3b3320" stroke-width="2.6" stroke-linecap="round">
+            <path d="M718,276 L713,268"/><path d="M725,272 L723,263"/><path d="M733,271 L734,262"/>
+            <path d="M756,270 L755,261"/><path d="M764,270 L766,262"/><path d="M772,273 L776,265"/>
+          </g>
+          <path d="M742,306 C746,312 752,312 756,305" stroke="#c9a227" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+          <path d="M726,314 C738,330 758,330 770,312" stroke="#8a5c12" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+          <g fill="#fff" stroke="#c9a227" stroke-width="2">
+            <rect x="738" y="316" width="9" height="8" rx="2"/>
+            <rect x="748" y="316" width="9" height="8" rx="2"/>
+          </g>
+          <ellipse cx="714" cy="316" rx="7" ry="5" fill="#ff9a9a" opacity=".45"/>
+          <ellipse cx="788" cy="312" rx="7" ry="5" fill="#ff9a9a" opacity=".45"/>
+          <path d="M706,330 L796,330 L796,352 L706,352 Z" fill="#fdfcf2" stroke="#c9a227" stroke-width="3"/>
+          <path d="M706,352 L796,352 L796,374 L706,374 Z" fill="#9a6634" stroke="#6f4520" stroke-width="3"/>
+          <path d="M706,352 L796,352" stroke="#3d2a17" stroke-width="5"/>
+          <path d="M747,338 L757,338 L755,346 L749,346 Z" fill="#d94444" stroke="#a52a2a" stroke-width="2"/>
+          <path d="M749,346 L755,346 L757,362 L751,368 L746,362 Z" fill="#d94444" stroke="#a52a2a" stroke-width="2"/>
+          <path d="M739,331 L749,346 L759,331" fill="none" stroke="#c9a227" stroke-width="2.5"/>
+        </g>
+      </g>
+
+      <!-- ===== 派大星：躯干 ===== -->
+      <path d="M 742,466 C 742,432 758,410 782,400 C 804,392 820,402 828,424 C 836,448 836,480 828,502 C 820,524 802,534 780,532 C 756,530 742,504 742,466 Z"
+            fill="url(#pinkGrad)" stroke="#d76b9c" stroke-width="4.5"/>
+      <ellipse cx="784" cy="476" rx="34" ry="44" transform="rotate(6 784 476)" fill="#ffc6da" opacity=".65"/>
+      <circle cx="760" cy="446" r="5.5" fill="#ef8fba" opacity=".8"/>
+      <circle cx="800" cy="512" r="5" fill="#ef8fba" opacity=".8"/>
+      <circle cx="822" cy="462" r="4.5" fill="#ef8fba" opacity=".75"/>
+      <circle cx="764" cy="508" r="4.5" fill="#ef8fba" opacity=".7"/>
+
+      <!-- 脖子 -->
+      <ellipse cx="808" cy="404" rx="34" ry="26" fill="url(#pinkGrad)"/>
+
+      <!-- ===== 派大星：头 ===== -->
+      <g id="patrickHead" transform="translate(-31,2)">
+       <g transform="translate(843,340) scale(1.12) translate(-843,-340)">
+        <path d="M830,286 C848,300 874,312 882,330 C890,350 882,376 862,386 C846,394 822,392 808,378 C794,364 794,340 802,322 C810,306 818,294 830,286 Z"
+              fill="url(#pinkGrad)" stroke="#d76b9c" stroke-width="4"/>
+        <circle cx="812" cy="316" r="5.5" fill="#ef8fba" opacity=".8"/>
+        <circle cx="870" cy="356" r="5" fill="#ef8fba" opacity=".8"/>
+        <path d="M812,310 C818,305 826,305 831,309" stroke="#c9587f" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <path d="M845,306 C851,302 859,303 864,307" stroke="#c9587f" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <ellipse cx="828" cy="332" rx="12.5" ry="14.5" fill="#fff" stroke="#c9587f" stroke-width="2.5"/>
+        <ellipse cx="856" cy="329" rx="12.5" ry="14.5" fill="#fff" stroke="#c9587f" stroke-width="2.5"/>
+        <circle cx="834" cy="333" r="5.2" fill="#22323c"/>
+        <circle cx="862" cy="330" r="5.2" fill="#22323c"/>
+        <circle cx="836" cy="330" r="1.8" fill="#fff"/>
+        <circle cx="864" cy="327" r="1.8" fill="#fff"/>
+        <ellipse cx="808" cy="352" rx="9" ry="6" fill="#ff8fb8" opacity=".5"/>
+        <ellipse cx="874" cy="348" rx="9" ry="6" fill="#ff8fb8" opacity=".5"/>
+        <path d="M820,352 C828,368 848,372 862,354 C848,382 826,378 820,352 Z" fill="#b53b63" stroke="#c9587f" stroke-width="2.5" stroke-linejoin="round"/>
+        <ellipse cx="841" cy="369" rx="7" ry="4" fill="#ff9dbd"/>
+        <path d="M795,300 C 788,310 790,318 796,318 C 802,318 803,309 795,300 Z" fill="#9fe6ff" stroke="#5ec3e0" stroke-width="2"/>
+       </g>
+      </g>
+
+      <!-- ===== 海绵宝宝：跨住派大星腰的腿 ===== -->
+      <g id="sbLegNear">
+        <path d="M 742,430 C 736,456 730,486 732,512" fill="none" stroke="#c9a227" stroke-width="17" stroke-linecap="round"/>
+        <path d="M 742,430 C 736,456 730,486 732,512" fill="none" stroke="#fbe04b" stroke-width="12" stroke-linecap="round"/>
+        <g transform="translate(732,518) rotate(88)">
+          <rect x="-14" y="-7" width="28" height="15" rx="7" fill="#2b2b33" stroke="#14141a" stroke-width="2.5"/>
+          <rect x="-14" y="-7" width="28" height="5" rx="2.5" fill="#fff"/>
+        </g>
+      </g>
+
+      <!-- ===== 海绵宝宝：搂住派大星脖子的手臂 ===== -->
+      <path d="M 764,362 C 780,376 794,394 804,410" fill="none" stroke="#c9a227" stroke-width="14" stroke-linecap="round"/>
+      <path d="M 764,362 C 780,376 794,394 804,410" fill="none" stroke="#f7dd48" stroke-width="9" stroke-linecap="round"/>
+      <circle cx="806" cy="413" r="9" fill="#f7dd48" stroke="#c9a227" stroke-width="2.5"/>
+      <path d="M 801,407 q 5,-5 10,0 M 808,406 q 4,-3 6,1" stroke="#c9a227" stroke-width="2" fill="none" stroke-linecap="round" opacity=".7"/>
+
+      <!-- ===== 海绵宝宝：举网的手臂 ===== -->
+      <path d="M 752,352 C 756,330 754,304 752,282" fill="none" stroke="#c9a227" stroke-width="14" stroke-linecap="round"/>
+      <path d="M 752,352 C 756,330 754,304 752,282" fill="none" stroke="#f7dd48" stroke-width="9" stroke-linecap="round"/>
+      <circle cx="752" cy="278" r="9.5" fill="#f7dd48" stroke="#c9a227" stroke-width="2.8"/>
+
+      <!-- ===== 捕虫网 ===== -->
+      <g id="net">
+        <g>
+          <path d="M1016,206 C1004,246 1012,284 1042,300 C1072,288 1094,250 1099,203 C1082,236 1034,238 1016,206 Z"
+                fill="rgba(200,244,255,.13)" stroke="rgba(232,255,255,.42)" stroke-width="2"/>
+          <g clip-path="url(#bagClip)" stroke="rgba(235,255,255,.3)" stroke-width="1.1">
+            <path d="M1010,208 L1100,208"/><path d="M1008,226 L1104,226"/>
+            <path d="M1010,244 L1100,244"/><path d="M1016,262 L1096,262"/><path d="M1024,280 L1086,280"/>
+            <path d="M1026,200 L1020,296"/><path d="M1042,200 L1038,300"/><path d="M1058,200 L1058,302"/>
+            <path d="M1074,200 L1080,296"/><path d="M1090,202 L1098,286"/>
+          </g>
+        </g>
+        <circle cx="1058" cy="180" r="48" fill="none" stroke="#e8b45f" stroke-width="8"/>
+        <circle cx="1058" cy="180" r="48" fill="none" stroke="#a8772f" stroke-width="2" opacity=".8"/>
+        <circle cx="1058" cy="180" r="44" fill="rgba(235,255,255,.10)" stroke="rgba(255,255,255,.25)" stroke-width="1.5"/>
+        <g clip-path="url(#hoopClip)" stroke="rgba(240,255,255,.42)" stroke-width="1.4">
+          <path d="M1002,142 L1114,230"/><path d="M1020,136 L1124,210"/><path d="M1042,134 L1126,190"/>
+          <path d="M1002,174 L1090,238"/><path d="M1000,200 L1066,240"/>
+          <path d="M1002,230 L1114,142"/><path d="M1020,236 L1124,162"/><path d="M1042,238 L1126,182"/>
+          <path d="M1002,198 L1090,134"/><path d="M1000,172 L1066,132"/>
+        </g>
+        <line x1="734" y1="263" x2="1014" y2="199" stroke="#a8772f" stroke-width="11" stroke-linecap="round"/>
+        <line x1="734" y1="263" x2="1014" y2="199" stroke="#e8b45f" stroke-width="6" stroke-linecap="round"/>
+        <circle cx="1058" cy="180" r="5" fill="#ffdf9a" opacity=".9"/>
+      </g>
+
+      <!-- ===== 派大星：近侧腿 ===== -->
+      <g id="legNear">
+        <polyline points="782,512 790,560 786,602" fill="none" stroke="#c95d8a" stroke-width="35" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="782,512 790,560 786,602" fill="none" stroke="#f9a8c8" stroke-width="27" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+      <ellipse id="footNear" cx="786" cy="604" rx="17" ry="10" fill="#f9a8c8" stroke="#c95d8a" stroke-width="3"/>
+
+      <!-- ===== 派大星：近侧手臂 ===== -->
+      <g id="armNear">
+        <polyline points="808,420 830,452 866,494" fill="none" stroke="#c95d8a" stroke-width="33" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="808,420 830,452 866,494" fill="none" stroke="#f9a8c8" stroke-width="25" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+      <ellipse id="handNear" cx="866" cy="496" rx="14" ry="9.5" fill="#f9a8c8" stroke="#c95d8a" stroke-width="3"/>
+    </g>
+  </g>
+
+  <!-- ================= FX ================= -->
+  <g id="puffs"></g>
+  <g id="sparks"></g>
+  <g id="bubblesFront" fill="rgba(255,255,255,.10)" stroke="rgba(255,255,255,.6)" stroke-width="2"></g>
+
+  <!-- 前景海草 -->
+  <g id="kelpL" fill="none" stroke="#146b56" stroke-width="16" stroke-linecap="round" opacity=".9">
+    <path d="M40,690 C 26,626 54,586 34,530 C 22,496 34,466 48,448"/>
+  </g>
+  <g id="kelpL2" fill="none" stroke="#1c7f63" stroke-width="10" stroke-linecap="round" opacity=".75">
+    <path d="M92,690 C 82,640 100,610 88,572"/>
+  </g>
+  <g id="kelpR" fill="none" stroke="#146b56" stroke-width="18" stroke-linecap="round" opacity=".9">
+    <path d="M1168,690 C 1186,620 1156,576 1178,520 C 1190,488 1180,462 1168,442"/>
+  </g>
+  <g id="kelpR2" fill="none" stroke="#1c7f63" stroke-width="11" stroke-linecap="round" opacity=".7">
+    <path d="M1116,690 C 1126,640 1108,606 1122,568"/>
+  </g>
+
+  <rect width="1200" height="675" fill="url(#vignette)" pointer-events="none"/>
+</svg>
+
+<!-- ================= HUD ================= -->
+<div class="hud">
+  <div class="top">
+    <div class="card">
+      <h1>比奇堡 · 抓水母大作战</h1>
+      <p class="sub">海绵宝宝骑在派大星背上 · 冲向水母田</p>
+    </div>
+    <div class="right">
+      <div class="card score">
+        <svg width="22" height="22" viewBox="0 0 40 40" aria-hidden="true">
+          <ellipse cx="20" cy="24" rx="14" ry="5" fill="#ff9ad8" opacity=".35"/>
+          <path d="M6,20 C6,10 12,5 20,5 C28,5 34,10 34,20 C30,24 26,17 22,21 C18,25 14,17 10,21 C8,22.5 7,21 6,20 Z" fill="#ff9ad8" stroke="#ff6fc4" stroke-width="2"/>
+          <circle cx="15" cy="14" r="1.8" fill="#8a2a60"/><circle cx="25" cy="14" r="1.8" fill="#8a2a60"/>
+        </svg>
+        <b id="score">0</b><span class="unit">只水母</span>
+      </div>
+    </div>
+  </div>
+  <div class="bottom">
+    <div class="hint">点画面 / 按 S → 帮海绵宝宝挥网 · 空格暂停</div>
+    <div class="right-bottom">
+      <div class="credit">Bikini Bottom · Jellyfish Fields &nbsp;|&nbsp; 灵感：鹈鹕骑自行车 benchmark</div>
+      <div class="row">
+        <button class="btn" id="btnPause" title="暂停 / 继续">⏸ 暂停</button>
+        <button class="btn" id="btnSpeed" title="切换速度">1.0×</button>
+        <button class="btn" id="btnSwing" title="挥网">挥网</button>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast">捕获 +1</div>
+  <div class="rotate-tip">↻ 横过来看，海底兜风更带感</div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const NS = 'http://www.w3.org/2000/svg';
+  const $ = id => document.getElementById(id);
+  const setT = (el, v) => { if (el) el.setAttribute('transform', v); };
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  /* ---------- 关键几何 ---------- */
+  const G = {
+    shoulderNear: { x: 808, y: 420 },
+    shoulderFar:  { x: 818, y: 414 },
+    hipNear:      { x: 782, y: 512 },
+    hipFar:       { x: 792, y: 512 },
+    footNearBase: { x: 786, y: 604 },
+    footFarBase:  { x: 824, y: 600 },
+    handNearBase: { x: 866, y: 494 },
+    handFarBase:  { x: 742, y: 494 },
+    hand: { x: 751, y: 278 },
+    hoop: { x: 1075, y: 195 }
+  };
+
+  const state = {
+    t: 0, paused: false, speedIdx: 0, speeds: [1, 1.75, 0.55],
+    far: 0, mid: 0, ground: 0,
+    score: 0, cd: 3.2,
+    swipe: 0, netDeg: -3,
+    mouth: { x: G.hoop.x, y: G.hoop.y }
+  };
+
+  /* ---------- 背景滚动 ---------- */
+  const farScroll = $('farScroll'), midScroll = $('midScroll'), groundScroll = $('groundScroll');
+  const rig = $('rig'), bodyG = $('bodyG'), net = $('net');
+  const legNear = $('legNear'), legFar = $('legFar');
+  const armNear = $('armNear'), armFar = $('armFar');
+  const footNear = $('footNear'), footFar = $('footFar');
+  const handNear = $('handNear'), handFar = $('handFar');
+  const patrickHead = $('patrickHead');
+
+  /* ---------- 两段式 IK（膝盖朝前） ---------- */
+  function ik(h, f, l1, l2, forward) {
+    let dx = f.x - h.x, dy = f.y - h.y;
+    let d = Math.hypot(dx, dy);
+    d = Math.max(0.001, Math.min(d, l1 + l2 - 1));
+    const ux = dx / Math.hypot(dx, dy || 1), uy = dy / Math.hypot(dx, dy || 1);
+    const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
+    const hh = Math.sqrt(Math.max(0, l1 * l1 - a * a));
+    const mx = h.x + ux * a, my = h.y + uy * a;
+    const k1 = { x: mx - uy * hh, y: my + ux * hh };
+    const k2 = { x: mx + uy * hh, y: my - ux * hh };
+    if (forward === false) return k1.x <= k2.x ? k1 : k2;   // 前肢：肘朝后
+    return k1.x >= k2.x ? k1 : k2;                            // 后肢：膝朝前
+  }
+  function setLimb(g, h, f, l1, l2, forward) {
+    if (!g) return;
+    const k = ik(h, f, l1, l2, forward);
+    const pts = h.x.toFixed(1) + ',' + h.y.toFixed(1) + ' ' + k.x.toFixed(1) + ',' + k.y.toFixed(1) + ' ' + f.x.toFixed(1) + ',' + f.y.toFixed(1);
+    g.querySelectorAll('polyline').forEach(p => p.setAttribute('points', pts));
+  }
+  function setFE(el, pt) {
+    if (!el) return;
+    el.setAttribute('cx', pt.x.toFixed(1));
+    el.setAttribute('cy', pt.y.toFixed(1));
+  }
+
+  /* ---------- 气泡 ---------- */
+  const bubblesG = $('bubbles'), bubblesFront = $('bubblesFront');
+  const bubbles = [];
+  for (let i = 0; i < 26; i++) {
+    const b = {
+      x: rand(0, 1200), y: rand(0, 675), r: rand(2.2, 7.5),
+      vy: rand(16, 44), ph: rand(0, 6.28), front: i % 5 === 0,
+      el: document.createElementNS(NS, 'circle')
+    };
+    b.r = b.front ? b.r * 1.9 : b.r;
+    b.el.setAttribute('r', b.r.toFixed(1));
+    (b.front ? bubblesFront : bubblesG).appendChild(b.el);
+    bubbles.push(b);
+  }
+
+  /* ---------- 水母 ---------- */
+  const jelliesG = $('jellies');
+  const jellies = [];
+  let uid = 0;
+
+  function makeJellyEl() {
+    const g = document.createElementNS(NS, 'g');
+    g.innerHTML =
+      '<ellipse cx="0" cy="4" rx="54" ry="46" fill="url(#jellyAura)"/>' +
+      '<g stroke="#ff9ad8" stroke-width="3.2" stroke-linecap="round" fill="none" opacity=".92">' +
+        '<path class="tent" data-ox="-24" data-oy="10" d="M -24,10 C -30,28 -36,44 -26,60"/>' +
+        '<path class="tent" data-ox="-8"  data-oy="12" d="M -8,12 C -12,32 -16,50 -6,66"/>' +
+        '<path class="tent" data-ox="8"   data-oy="12" d="M 8,12 C 12,32 16,50 6,66"/>' +
+        '<path class="tent" data-ox="24"  data-oy="10" d="M 24,10 C 30,28 36,44 26,60"/>' +
+      '</g>' +
+      '<path d="M -44,12 C -44,-14 -26,-36 0,-36 C 26,-36 44,-14 44,12 C 34,20 26,6 16,14 C 8,20 0,8 -8,14 C -18,20 -30,8 -44,12 Z" fill="url(#jellyBell)" stroke="#ff6fc4" stroke-width="3"/>' +
+      '<path d="M -30,-8 C -27,-24 -14,-31 1,-30" stroke="#fff" stroke-width="5" stroke-linecap="round" fill="none" opacity=".55"/>' +
+      '<circle cx="-12" cy="-4" r="3.4" fill="#8a2a60"/><circle cx="9" cy="-7" r="3.4" fill="#8a2a60"/>' +
+      '<ellipse cx="0" cy="8" rx="15" ry="5" fill="#ffd0ec" opacity=".6"/>';
+    return g;
+  }
+
+  function makeJelly(x, y, s, vx) {
+    const el = makeJellyEl();
+    const j = {
+      id: ++uid, x, y, s, vx, ph: rand(0, 6.28),
+      state: 'free', ct: 0, el,
+      tents: [...el.querySelectorAll('.tent')]
+    };
+    el.dataset.id = j.id;
+    jelliesG.appendChild(el);
+    jellies.push(j);
+    return j;
+  }
+
+  // 初始水母：一部分在普通水域，一部分在网口附近
+  [[330, 210, .62], [560, 158, .75], [770, 300, .55], [1010, 150, .9], [1140, 262, .8], [930, 118, .65]]
+    .forEach(([x, y, s], i) => makeJelly(x, y, s, -rand(22, 38)));
+
+  const pendingSpawn = [];
+  function spawnAhead() {
+    makeJelly(rand(1220, 1380), rand(120, 320), rand(0.55, 0.95), -rand(26, 48));
+  }
+
+  /* ---------- 特效 ---------- */
+  const sparksG = $('sparks'), puffsG = $('puffs');
+  const sparks = [];
+  function sparkle(x, y) {
+    const ring = document.createElementNS(NS, 'circle');
+    ring.setAttribute('cx', x); ring.setAttribute('cy', y); ring.setAttribute('r', 10);
+    ring.setAttribute('fill', 'none');
+    ring.setAttribute('stroke', '#fff3b0'); ring.setAttribute('stroke-width', '3');
+    sparksG.appendChild(ring);
+    sparks.push({ el: ring, life: .55, max: .55, kind: 'ring', x, y });
+
+    for (let i = 0; i < 10; i++) {
+      const a = rand(0, Math.PI * 2), sp = rand(60, 200);
+      const c = document.createElementNS(NS, 'circle');
+      const r = rand(1.6, 4);
+      c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', r);
+      c.setAttribute('fill', i % 3 === 0 ? '#fff' : (i % 3 === 1 ? '#ffe27a' : '#ffb3e6'));
+      sparksG.appendChild(c);
+      sparks.push({ el: c, life: .7, max: .7, kind: 'dot', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40 });
+    }
+  }
+
+  const puffs = [];
+  function puff(x, y) {
+    const e = document.createElementNS(NS, 'ellipse');
+    e.setAttribute('cx', x); e.setAttribute('cy', y);
+    e.setAttribute('rx', rand(5, 10)); e.setAttribute('ry', rand(3, 6));
+    e.setAttribute('fill', '#f3e2b0');
+    puffsG.appendChild(e);
+    puffs.push({ el: e, life: .55, max: .55, x, y, vx: rand(-80, -30), vy: rand(-26, -62), g: 26 });
+  }
+
+  /* ---------- 速度线 ---------- */
+  const streaksG = $('streaks');
+  const streaks = [];
+  for (let i = 0; i < 7; i++) {
+    const l = document.createElementNS(NS, 'line');
+    l.setAttribute('stroke-width', rand(2, 3.6).toFixed(1));
+    streaksG.appendChild(l);
+    streaks.push({ el: l, y: 452 + i * 20 + rand(-10, 10), off: rand(0, 320), len: rand(26, 78), sp: rand(240, 360), op: rand(.07, .18) });
+  }
+
+  /* ---------- 捕获逻辑 ---------- */
+  const scoreEl = $('score'), toastEl = $('toast');
+  let toastTimer = 0;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1100);
+  }
+  function bumpScore() {
+    state.score++;
+    scoreEl.textContent = state.score;
+    scoreEl.classList.add('pop');
+    setTimeout(() => scoreEl.classList.remove('pop'), 220);
+  }
+
+  function startCatch(j) {
+    if (!j || j.state !== 'free') return;
+    j.state = 'catching';
+    j.ct = 0;
+    state.swipe = .5;
+    state.cd = 2.6;
+  }
+  function finishCatch(j) {
+    j.el.remove();
+    const idx = jellies.indexOf(j);
+    if (idx >= 0) jellies.splice(idx, 1);
+    bumpScore();
+    sparkle(state.mouth.x, state.mouth.y);
+    toast('捕获 +1  🪼');
+    pendingSpawn.push(state.t + .9);
+  }
+
+  function swing() {
+    if (state.paused) return;
+    state.swipe = .5;
+    state.cd = 2.4;
+    const cand = jellies
+      .filter(j => j.state === 'free' && Math.hypot(j.x - state.mouth.x, j.y - state.mouth.y) < 340)
+      .sort((a, b) => Math.hypot(a.x - state.mouth.x, a.y - state.mouth.y) - Math.hypot(b.x - state.mouth.x, b.y - state.mouth.y));
+    if (cand.length) startCatch(cand[0]);
+    else toast('再靠近一点点～');
+  }
+
+  /* ---------- 主循环 ---------- */
+  let last = performance.now();
+
+  function update(dt) {
+    const t = state.t;
+
+    /* 场景滚动 */
+    state.far = (state.far + 22 * dt) % 1600;
+    state.mid = (state.mid + 56 * dt) % 1600;
+    state.ground = (state.ground + 150 * dt) % 1600;
+    setT(farScroll, 'translate(' + (-state.far).toFixed(2) + ',0)');
+    setT(midScroll, 'translate(' + (-state.mid).toFixed(2) + ',0)');
+    setT(groundScroll, 'translate(' + (-state.ground).toFixed(2) + ',0)');
+
+    /* ---------- 派大星小跑 ---------- */
+    const p = t * 9.5;                                  // 步态相位
+    const bob = -1 - 5 * Math.abs(Math.sin(p));         // 身体起伏
+    state.bob = bob;
+    setT(bodyG, 'translate(0,' + bob.toFixed(2) + ')');
+
+    const step = (b, ph, stride, lift) => ({
+      x: b.x + Math.cos(ph) * stride,
+      y: b.y - Math.max(0, Math.sin(ph)) * lift
+    });
+    const fN = step(G.footNearBase, p, 26, 24);
+    const fF = step(G.footFarBase, p + Math.PI, 26, 24);
+    const hN = step(G.handNearBase, p + Math.PI, 20, 7);
+    const hF = step(G.handFarBase, p, 20, 7);
+
+    const hiNear = { x: G.hipNear.x, y: G.hipNear.y + bob };
+    const hiFar  = { x: G.hipFar.x,  y: G.hipFar.y + bob };
+    const shNear = { x: G.shoulderNear.x, y: G.shoulderNear.y + bob };
+    const shFar  = { x: G.shoulderFar.x,  y: G.shoulderFar.y + bob };
+
+    setLimb(legFar,  hiFar,  fF, 62, 60, true);
+    setFE(footFar, fF);
+    setLimb(armFar,  shFar,  hF, 56, 52, false);
+    setFE(handFar, hF);
+    setLimb(legNear, hiNear, fN, 62, 60, true);
+    setFE(footNear, fN);
+    setLimb(armNear, shNear, hN, 56, 52, false);
+    setFE(handNear, hN);
+
+    /* 头部随步频轻点 */
+    setT(patrickHead, 'translate(-31,2) rotate(' + (Math.sin(p + .6) * 2.6).toFixed(2) + ' 843 340)');
+    /* 海绵宝宝被颠得一颠一颠 */
+    setT($('sb'), 'translate(0,' + (-1.8 * Math.sin(2 * p + .9)).toFixed(2) + ')');
+    setT($('sbLegNear'), 'rotate(' + (Math.sin(2 * p + .4) * 3.2).toFixed(2) + ' 742 430)');
+
+    state.feet = { rNear: fN, rFar: fF };
+
+    /* ---------- 网 ---------- */
+    if (state.swipe > 0) state.swipe = Math.max(0, state.swipe - dt);
+    const sp = 1 - state.swipe / .5;
+    const swipeAng = state.swipe > 0 ? -15 * Math.sin(Math.PI * Math.min(1, sp)) : 0;
+    const deg = -3 + Math.sin(t * 1.15) * 3 + swipeAng;
+    setT(net, 'translate(17,15) rotate(' + deg.toFixed(2) + ' 734 263)');
+
+    const dx = G.hoop.x - G.hand.x, dy = G.hoop.y - G.hand.y;
+    const rr = deg * Math.PI / 180, cc = Math.cos(rr), ss = Math.sin(rr);
+    state.mouth.x = G.hand.x + dx * cc - dy * ss;
+    state.mouth.y = bob + G.hand.y + dx * ss + dy * cc;
+
+    /* 水母 */
+    for (let i = jellies.length - 1; i >= 0; i--) {
+      const j = jellies[i];
+      if (j.state === 'free') {
+        j.x += j.vx * dt;
+        j.y += Math.sin(t * .85 + j.ph) * 9 * dt;
+        if (j.x < -120) {
+          j.x = rand(1240, 1420);
+          j.y = rand(110, 340);
+          j.vx = -rand(24, 46);
+          j.s = rand(.55, .95);
+        }
+      } else if (j.state === 'catching') {
+        j.ct += dt;
+        const k = Math.min(1, dt * 11);
+        j.x += (state.mouth.x - 6 - j.x) * k;
+        j.y += (state.mouth.y + 8 - j.y) * k;
+        j.s += (0.28 - j.s) * Math.min(1, dt * 6);
+        if (j.ct > .55) { finishCatch(j); continue; }
+      }
+      const bobJ = Math.sin(t * 1.7 + j.ph) * 8;
+      const sq = Math.sin(t * 3.1 + j.ph) * .05;
+      setT(j.el, 'translate(' + j.x.toFixed(1) + ',' + (j.y + bobJ).toFixed(1) + ') scale(' + ((1 + sq) * j.s).toFixed(3) + ',' + ((1 - sq) * j.s).toFixed(3) + ')');
+      for (let k = 0; k < j.tents.length; k++) {
+        const tn = j.tents[k];
+        const ang = Math.sin(t * 2.3 + j.ph + k * .8) * 13;
+        setT(tn, 'rotate(' + ang.toFixed(1) + ' ' + tn.dataset.ox + ' ' + tn.dataset.oy + ')');
+      }
+    }
+
+    /* 自动补一只 */
+    for (let i = pendingSpawn.length - 1; i >= 0; i--) {
+      if (state.t >= pendingSpawn[i]) { pendingSpawn.splice(i, 1); spawnAhead(); }
+    }
+
+    /* 自动捕捞 */
+    if (state.cd > 0) state.cd -= dt;
+    else {
+      let best = null, bd = 1e9;
+      for (const j of jellies) {
+        if (j.state !== 'free') continue;
+        const d = Math.hypot(j.x - state.mouth.x, j.y - state.mouth.y);
+        if (d < bd) { bd = d; best = j; }
+      }
+      if (best && bd < 122) startCatch(best);
+    }
+
+    /* 气泡 */
+    for (const b of bubbles) {
+      b.y -= b.vy * dt * (b.front ? .7 : 1);
+      b.x += Math.sin(t * 1.6 + b.ph) * 10 * dt;
+      if (b.y < -30) { b.y = 700; b.x = rand(0, 1200); }
+      b.el.setAttribute('cx', b.x.toFixed(1));
+      b.el.setAttribute('cy', b.y.toFixed(1));
+    }
+
+    /* 沙尘 */
+    if (dt > 0) {
+      puffTimer -= dt;
+      if (puffTimer <= 0) {
+        puffTimer = .07;
+        const ft = Math.random() < .5 ? state.feet.rNear : state.feet.rFar;
+        puff(ft.x - 4 + rand(-8, 6), ft.y + rand(1, 6));
+      }
+    }
+    for (let i = puffs.length - 1; i >= 0; i--) {
+      const p = puffs[i];
+      p.life -= dt;
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.g * dt;
+      if (p.life <= 0) { p.el.remove(); puffs.splice(i, 1); continue; }
+      const k = p.life / p.max;
+      p.el.setAttribute('cx', p.x.toFixed(1));
+      p.el.setAttribute('cy', p.y.toFixed(1));
+      p.el.setAttribute('opacity', (k * .55).toFixed(2));
+    }
+
+    /* 火花 */
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const s = sparks[i];
+      s.life -= dt;
+      if (s.life <= 0) { s.el.remove(); sparks.splice(i, 1); continue; }
+      const k = s.life / s.max;
+      if (s.kind === 'ring') {
+        s.el.setAttribute('r', (10 + (1 - k) * 52).toFixed(1));
+        s.el.setAttribute('opacity', (k * .9).toFixed(2));
+      } else {
+        s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 240 * dt;
+        s.el.setAttribute('cx', s.x.toFixed(1));
+        s.el.setAttribute('cy', s.y.toFixed(1));
+        s.el.setAttribute('opacity', k.toFixed(2));
+      }
+    }
+
+    /* 速度线 */
+    for (const s of streaks) {
+      const x = 620 - ((s.off + t * s.sp) % 420);
+      s.el.setAttribute('x1', (x + s.len).toFixed(1));
+      s.el.setAttribute('y1', s.y.toFixed(1));
+      s.el.setAttribute('x2', x.toFixed(1));
+      s.el.setAttribute('y2', s.y.toFixed(1));
+      const edge = Math.min(1, Math.max(0, (x - 150) / 120), Math.max(0, (620 - x) / 120));
+      s.el.setAttribute('opacity', (s.op * edge * .8).toFixed(2));
+    }
+
+    /* 光柱呼吸 */
+    for (let i = 0; i < 5; i++) {
+      const el = $('ray' + i);
+      if (!el) continue;
+      const base = [.085, .06, .075, .045, .035][i];
+      el.setAttribute('opacity', (base * (0.72 + 0.45 * Math.sin(t * .7 + i * 1.3))).toFixed(3));
+    }
+
+    /* 沙面光斑 */
+    for (let i = 0; i < 3; i++) {
+      const el = $('cau' + i);
+      if (!el) continue;
+      el.setAttribute('opacity', (0.05 + 0.06 * (0.5 + 0.5 * Math.sin(t * .9 + i * 2.1))).toFixed(3));
+    }
+
+    /* 前景海草 */
+    const sway = (m, s) => (Math.sin(t * 1.1 * s + m) * 3.2).toFixed(2);
+    setT($('kelpL'), 'rotate(' + sway(0, 1) + ' 40 690)');
+    setT($('kelpL2'), 'rotate(' + sway(1.4, 1.3) + ' 92 690)');
+    setT($('kelpR'), 'rotate(' + sway(2.2, .9) + ' 1168 690)');
+    setT($('kelpR2'), 'rotate(' + sway(.7, 1.15) + ' 1116 690)');
+  }
+
+  let puffTimer = 0;
+
+  function frame(now) {
+    let raw = (now - last) / 1000;
+    last = now;
+    if (!isFinite(raw) || raw < 0) raw = 0;
+    raw = Math.min(raw, .05);
+    const dt = state.paused ? 0 : raw * state.speeds[state.speedIdx];
+    state.t += dt;
+    update(dt);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  /* ---------- 交互 ---------- */
+  const stage = $('stage');
+  stage.addEventListener('pointerdown', e => {
+    if (e.target.closest('.btn')) return;
+    swing();
+  });
+  stage.addEventListener('keydown', e => e.stopPropagation());
+
+  $('btnSwing').addEventListener('click', e => { e.stopPropagation(); swing(); });
+
+  const btnPause = $('btnPause');
+  btnPause.addEventListener('click', e => {
+    e.stopPropagation();
+    state.paused = !state.paused;
+    btnPause.textContent = state.paused ? '▶ 继续' : '⏸ 暂停';
+  });
+
+  const labels = ['1.0×', '1.75×', '0.55×'];
+  const btnSpeed = $('btnSpeed');
+  btnSpeed.addEventListener('click', e => {
+    e.stopPropagation();
+    state.speedIdx = (state.speedIdx + 1) % 3;
+    btnSpeed.textContent = labels[state.speedIdx];
+  });
+
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); btnPause.click(); }
+    if (e.key === 's' || e.key === 'S') { e.preventDefault(); swing(); }
+  });
+
+  /* 调试钩子（截图/测试用） */
+  window.__SCENE = { state, jellies, swing };
+  if (location.search.indexOf('clean') >= 0) document.body.classList.add('clean');
+})();
+</script>
+</body>
+</html>
